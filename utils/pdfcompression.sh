@@ -55,10 +55,10 @@ gs \
     # Run in batch mode, exiting after processing without entering interactive mode. \
   -dNOPAUSE \
     # Disable pausing between pages, ensuring continuous processing without user input. \
-  -sOutputFile="/home/xander/Downloads/DelResume2.pdf" \
-    # Specify the output file path: "/home/xander/Downloads/DelResume2.pdf", where the compressed PDF will be saved. \
-  "/home/xander/Downloads/DelResFeb2025-compressed.pdf"
-    # Specify the input file path: "/home/xander/Downloads/DelResFeb2025-compressed.pdf", the original PDF to compress.
+  -sOutputFile="/home/usr/Downloads/pdfName.pdf" \
+    # Specify the output file path; where the compressed PDF will be saved. \
+  "/home/usr/Downloads/pdfName.pdf"
+    # Specify the input file path; the original PDF to compress.
 
     #gs -sDEVICE=pdfwrite    -dCompatibilityLevel=1.4    -dPDFSETTINGS=/ebook    -dColorImageDownsampleType=/Bicubic    -dColorImageResolution=150    -dGrayImageDownsampleType=/Bicubic    -dGrayImageResolution=150    -dMonoImageDownsampleType=/Subsample    -dMonoImageResolution=300    -dDownsampleColorImages=true    -dDownsampleGrayImages=true    -dDownsampleMonoImages=true    -dColorImageDownsampleThreshold=1.5    -dGrayImageDownsampleThreshold=1.5    -dMonoImageDownsampleThreshold=1.5    -dCompressFonts=true    -dDetectDuplicateImages=true    -dCompressImages=true    -dAutoFilterColorImages=false    -dAutoFilterGrayImages=false    -dColorImageFilter=/DCTEncode    -dGrayImageFilter=/DCTEncode    -dBATCH    -dNOPAUSE    -sOutputFile="/home/xander/Downloads/DelResume2.pdf"    "/home/xander/Downloads/DelResFeb2025-compressed.pdf"
 #

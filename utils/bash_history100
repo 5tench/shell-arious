@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Reload history to ensure we capture all of it
+history -r
+
+# Set the output file name with a timestamp to avoid overwriting previous files
+output_file="/home/xander/Documents/Scripts/Bash/History/history_dump_$(date +'%Y%m%d_%H%M%S').txt"
+
+# Get the last 100 commands from history and dump them to the output file
+history | tail -n 100 > "$output_file"
+
+echo "Last 100 commands have been saved to $output_file."

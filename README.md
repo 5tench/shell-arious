@@ -1,2 +1,5 @@
 # shell-arious
-A repository for all things Linux related. This repo is for bash scripts that relate to sysadmin, automation, utilities, network, docs, fun, etc.!!!!
+
+A repository for sysadmin, devops, engineering, development, etc. tools. 
+
+I follow a PR-first branch cycle to keep the main branch stable and production-ready to reflect job-related repositories in seperate github accounts.

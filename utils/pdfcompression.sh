@@ -2,8 +2,6 @@
 
 # Purpose: Compress a PDF file using Ghostscript with balanced quality and size reduction.
 # This script uses specific settings to reduce the file size by approximately 2/3 while maintaining readability.
-# Input file: "/home/xander/Downloads/DelResFeb2025-compressed.pdf" - The original PDF to be compressed.
-# Output file: "/home/xander/Downloads/DelResume2.pdf" - The compressed PDF result.
 
 # Run Ghostscript with the following options:
 gs \

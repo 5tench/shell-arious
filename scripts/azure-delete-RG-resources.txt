@@ -1,0 +1,1 @@
+az resource list --resource-group 'myResourceGroupName' --query '[].id' -o tsv  xargs -I {} az resource delete --ids {} --verbose

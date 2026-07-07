@@ -1,55 +1,53 @@
-#!bin/bash
+#!/usr/bin/env bash
+# ---
+# Summary: Shows or performs common local cleanup tasks for cache, trash, crash reports, and apt.
+# Changes: Dry-run by default. Deletes files and runs cleanup commands only with --apply.
+# Run: ./utils/bash_cleanUp.sh then ./utils/bash_cleanUp.sh --apply
+# ---
 
-clean_directory (){   
-    dir=$1
-    echo "Cleaning all files in $dir..."
-    rm -rf "$dir"/*
+set -euo pipefail
+
+APPLY=false
+
+show_help() {
+    cat <<'HELP'
+Usage: bash_cleanUp.sh [--apply]
+
+Shows cleanup targets by default. Use --apply to remove user cache, thumbnail cache, trash, apt cache, crash reports, and old journal entries.
+This script can delete files. Review the output before using --apply.
+HELP
 }
 
-# Clean /tmp and /var/tmp
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    show_help
+    exit 0
+fi
 
-echo "Cleaning system temp"
-clean_directory "/tmp"
-clean_directory "/var/tmp"
+if [[ "${1:-}" == "--apply" ]]; then
+    APPLY=true
+fi
 
-# Clean cache directories
+run_or_show() {
+    if [[ "$APPLY" == true ]]; then
+        echo "+ $*"
+        eval "$@"
+    else
+        echo "DRY RUN: $*"
+    fi
+}
 
-echo "Cleaning system cache..."
-rm -rf /var/cache/*
-rm -rf /home/*/.cache/*
+echo "System cleanup helper"
+echo "Mode: $([[ "$APPLY" == true ]] && echo apply || echo dry-run)"
+echo ""
 
-# Clean apt package cache
+run_or_show 'rm -rf "$HOME/.cache/thumbnails"/*'
+run_or_show 'rm -rf "$HOME/.local/share/Trash"/*'
+run_or_show 'sudo apt-get clean'
+run_or_show 'sudo apt-get autoremove --purge -y'
+run_or_show 'sudo rm -rf /var/crash/*'
+run_or_show 'sudo journalctl --vacuum-time=7d'
 
-echo "Cleaning apt cache..."
-sudo apt-get clean
-
-# Remove old kernel versions
-
-echo "Removing old kernel versions..."
-sudo apt-get autoremove --purge -y
-
-# Clean old logs (keep the most recent ones)
-
-echo "Cleaning old logs..."
-find /var/log -type f -name "*.log" -exec rm -f {} \;
-
-# Clean crash reports
-
-echo "Cleaning crash reports..."
-rm -rf /var/crash/*
-
-# Clean systemd journal logs (older than 7 days)
-
-echo "Cleaning systemd journal logs..."
-sudo journalctl --vacuum-time=7d
-
-# Clean Trash
-
-echo "Cleaning Trash folders..."
-rm -rf $HOME/.local/share/Trash/*
-
-# Clean thumbnail cache
-
-echo "Cleaning thumbnail cache..."
-rm -rf $HOME/.cache/thumbnails/*
-echo "System cleanup complete."
+if [[ "$APPLY" != true ]]; then
+    echo ""
+    echo "No files were removed. Rerun with --apply to perform cleanup."
+fi

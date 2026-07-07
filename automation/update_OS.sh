@@ -1,31 +1,48 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# ---
+# Summary: Cleans apt caches and optionally updates Debian/Ubuntu packages.
+# Changes: Uses sudo and can modify installed packages when run with --update.
+# Run: ./automation/update_OS.sh or ./automation/update_OS.sh --update
+# ---
 
-echo "Starting system cleanup & updates..."
+set -euo pipefail
 
-# Clean up unused packages and dependencies
-sudo apt autoremove -y
-sudo apt autoclean -y
-sudo systemd-tmpfiles --remove
-sudo rm -rf .cache/thumbnails/*
-sudo du -sh /var/cache/apt | sudo apt-get clean
-sudo apt-get install -f
+show_help() {
+    cat <<'HELP'
+Usage: update_OS.sh [--update]
 
-# Prompt for system updates
-read -p "Do you want to update the system as well? (y/n): " update_choice
-update_choice=${update_choice:-y}  # Default to 'y' if empty
+Performs basic apt cleanup on Debian/Ubuntu systems. With --update, also runs package updates.
+This script changes the system and may require sudo.
+HELP
+}
 
-if [ "$update_choice" = "y" -o "$update_choice" = "Y" ]; then
-    # Update system
-    echo "Updating the system...."
-    sudo apt update && sudo apt upgrade -y
-    sudo apt install --install-recommends linux-generic
-    sudo apt update && sudo apt upgrade -y
-    sudo apt dist-upgrade -y
-    sudo apt full-upgrade
-    sudo apt update && sudo apt upgrade -y
-    echo "System updated successfully!"
+run() {
+    echo "+ $*"
+    "$@"
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    show_help
+    exit 0
+fi
+
+if ! command -v apt-get >/dev/null 2>&1; then
+    echo "This script expects apt-get and is intended for Debian/Ubuntu systems." >&2
+    exit 1
+fi
+
+run sudo apt-get autoremove -y
+run sudo apt-get autoclean -y
+run sudo systemd-tmpfiles --remove || true
+run sudo apt-get install -f -y
+run sudo apt-get clean
+
+if [[ "${1:-}" == "--update" ]]; then
+    run sudo apt-get update
+    run sudo apt-get upgrade -y
+    run sudo apt-get dist-upgrade -y
 else
-    echo "Skipping system updates."
+    echo "Skipping package updates. Rerun with --update to include them."
 fi
 
 echo "Cleanup complete."

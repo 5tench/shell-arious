@@ -1,55 +1,146 @@
-#!bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-clean_directory (){   
-    dir=$1
-    echo "Cleaning all files in $dir..."
-    rm -rf "$dir"/*
+APPLY=false
+PKG_MANAGER=""
+
+show_help() {
+  cat <<'HELP'
+Summary:
+  Shows or performs common local cleanup tasks for user cache, trash, package cache, and logs.
+
+Usage:
+  bash_cleanUp.sh [--apply]
+
+Examples:
+  ./utils/bash_cleanUp.sh
+  ./utils/bash_cleanUp.sh --apply
+
+Notes:
+  Dry-run by default. Deletes files and runs cleanup commands only with --apply.
+  Package-cache cleanup is selected at runtime for apt, dnf, yum, zypper, or pacman.
+HELP
 }
 
-# Clean /tmp and /var/tmp
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
 
-echo "Cleaning system temp"
-clean_directory "/tmp"
-clean_directory "/var/tmp"
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --apply)
+        APPLY=true
+        shift
+        ;;
+      --help|-h)
+        show_help
+        exit 0
+        ;;
+      *)
+        echo "Unknown option: $1" >&2
+        show_help >&2
+        exit 2
+        ;;
+    esac
+  done
+}
 
-# Clean cache directories
+detect_package_manager() {
+  if command_exists dnf; then
+    PKG_MANAGER="dnf"
+  elif command_exists yum; then
+    PKG_MANAGER="yum"
+  elif command_exists apt-get; then
+    PKG_MANAGER="apt-get"
+  elif command_exists apt; then
+    PKG_MANAGER="apt"
+  elif command_exists zypper; then
+    PKG_MANAGER="zypper"
+  elif command_exists pacman; then
+    PKG_MANAGER="pacman"
+  else
+    PKG_MANAGER=""
+  fi
+}
 
-echo "Cleaning system cache..."
-rm -rf /var/cache/*
-rm -rf /home/*/.cache/*
+run_or_preview() {
+  echo "+ $*"
 
-# Clean apt package cache
+  if [[ "$APPLY" == true ]]; then
+    "$@"
+  fi
+}
 
-echo "Cleaning apt cache..."
-sudo apt-get clean
+remove_directory_contents() {
+  local target="$1"
+  local needs_sudo="${2:-false}"
 
-# Remove old kernel versions
+  if [[ ! -d "$target" ]]; then
+    echo "Skipping $target: directory not found."
+    return 0
+  fi
 
-echo "Removing old kernel versions..."
-sudo apt-get autoremove --purge -y
+  if [[ "$needs_sudo" == true ]]; then
+    run_or_preview sudo find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  else
+    run_or_preview find "$target" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+  fi
+}
 
-# Clean old logs (keep the most recent ones)
+package_cleanup_commands() {
+  case "$PKG_MANAGER" in
+    apt-get|apt)
+      run_or_preview sudo "$PKG_MANAGER" autoremove -y
+      run_or_preview sudo "$PKG_MANAGER" clean
+      ;;
+    dnf|yum)
+      run_or_preview sudo "$PKG_MANAGER" autoremove -y
+      run_or_preview sudo "$PKG_MANAGER" clean all
+      ;;
+    zypper)
+      run_or_preview sudo zypper clean
+      ;;
+    pacman)
+      run_or_preview sudo pacman -Sc --noconfirm
+      ;;
+    "")
+      echo "No supported package manager found for package-cache cleanup."
+      ;;
+  esac
+}
 
-echo "Cleaning old logs..."
-find /var/log -type f -name "*.log" -exec rm -f {} \;
+main() {
+  parse_args "$@"
+  detect_package_manager
 
-# Clean crash reports
+  echo "System cleanup helper"
+  echo "Package manager: ${PKG_MANAGER:-not found}"
+  if [[ "$APPLY" == true ]]; then
+    mode="apply"
+  else
+    mode="dry-run"
+  fi
 
-echo "Cleaning crash reports..."
-rm -rf /var/crash/*
+  echo "Mode: $mode"
+  echo
 
-# Clean systemd journal logs (older than 7 days)
+  remove_directory_contents "$HOME/.cache/thumbnails"
+  remove_directory_contents "$HOME/.local/share/Trash"
+  remove_directory_contents "/var/crash" true
 
-echo "Cleaning systemd journal logs..."
-sudo journalctl --vacuum-time=7d
+  if command_exists journalctl; then
+    run_or_preview sudo journalctl --vacuum-time=7d
+  else
+    echo "Skipping journal cleanup: journalctl not available."
+  fi
 
-# Clean Trash
+  package_cleanup_commands
 
-echo "Cleaning Trash folders..."
-rm -rf $HOME/.local/share/Trash/*
+  if [[ "$APPLY" != true ]]; then
+    echo
+    echo "No files were removed. Rerun with --apply to perform cleanup."
+  fi
+}
 
-# Clean thumbnail cache
-
-echo "Cleaning thumbnail cache..."
-rm -rf $HOME/.cache/thumbnails/*
-echo "System cleanup complete."
+main "$@"

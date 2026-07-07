@@ -1,50 +1,73 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Usage: ./dir_explorer.sh <directory> <search_pattern> [field_number] [delimiter] [file_pattern]
-# Example: ./dir_explorer.sh /var/log "ERROR|WARN" 2 " " "*.log"  
-#          (All .log files, search ERROR|WARN, cut 2nd space-delimited field)
+show_help() {
+  cat <<'HELP'
+Summary:
+  Searches and samples text files in a directory.
 
-if [ $# -lt 2 ]; then
-    echo "Usage: $0 <directory> <search_pattern> [field] [delim] [file_pattern]"
-    echo "Example: $0 /var/log 'ERROR' 3 ',' '*.log'"
-    exit 1
+Usage:
+  text-explorer.sh <directory> <search_pattern> [field_number] [delimiter] [file_pattern]
+
+Examples:
+  ./scripts/text-explorer.sh /var/log "ERROR|WARN" "" " " "*.log"
+  ./scripts/text-explorer.sh ./logs "failed" 3 "," "*.csv"
+
+Notes:
+  Read-only helper for quick text exploration and basic field extraction.
+HELP
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  show_help
+  exit 0
 fi
 
-DIR=$1
-PATTERN=$2
-FIELD=${3:-}  # Optional field to cut
-DELIM=${4:- } # Default space delimiter
-FILEPAT=${5:-"*"}  # Default: all files
+if [[ $# -lt 2 ]]; then
+  show_help >&2
+  exit 2
+fi
 
-echo "=== DIRECTORY EXPLORER: $DIR ==="
-echo "Pattern: '$PATTERN' | Field: $FIELD | Files: $FILEPAT"
-echo ""
+DIR="$1"
+PATTERN="$2"
+FIELD="${3:-}"
+DELIM="${4:- }"
+FILE_PATTERN="${5:-*}"
 
-# 1. DISCOVER: List files
-echo "📁 Found files:"
-find "$DIR" -name "$FILEPAT" -type f | head -10  # Show first 10
-FILE_COUNT=$(find "$DIR" -name "$FILEPAT" -type f | wc -l)
-echo "Total: $FILE_COUNT files"
-echo ""
+if [[ ! -d "$DIR" ]]; then
+  echo "Directory not found: $DIR" >&2
+  exit 1
+fi
 
-# 2. SUMMARY: Sample from first/last files
-echo "=== QUICK SUMMARY (First 3 Files) ==="
-find "$DIR" -name "$FILEPAT" | head -3 | xargs -I {} sh -c 'echo "=== {} ==="; head -2 {}'
-echo ""
-echo "=== LAST LINES (Last 3 Files) ==="
-find "$DIR" -name "$FILEPAT" | tail -3 | xargs -I {} sh -c 'echo "=== {} ==="; tail -2 {}'
-echo ""
+echo "Directory explorer: $DIR"
+echo "Pattern: $PATTERN | Field: ${FIELD:-none} | Files: $FILE_PATTERN"
+echo
 
-# 3. SEARCH ACROSS ALL: grep + cut pipeline
-echo "=== FULL SEARCH RESULTS ($PATTERN) ==="
-if [ -z "$FIELD" ]; then
-    # Search only, page results
-    find "$DIR" -name "$FILEPAT" -exec egrep -l "$PATTERN" {} \; | \
-    xargs egrep -i "$PATTERN" | sort -u | less
+echo "Found files:"
+find "$DIR" -name "$FILE_PATTERN" -type f | head -10
+
+file_count=$(find "$DIR" -name "$FILE_PATTERN" -type f | wc -l | tr -d ' ')
+echo "Total: $file_count files"
+echo
+
+echo "Quick sample from first 3 files:"
+find "$DIR" -name "$FILE_PATTERN" -type f \
+  | head -3 \
+  | while IFS= read -r file; do
+      echo "--- $file ---"
+      head -2 "$file" || true
+    done
+
+echo
+echo "Search results:"
+
+if [[ -z "$FIELD" ]]; then
+  find "$DIR" -name "$FILE_PATTERN" -type f -print0 \
+    | xargs -0 grep -EHi "$PATTERN" 2>/dev/null \
+    | sort -u || true
 else
-    # Search + cut field, page results
-    find "$DIR" -name "$FILEPAT" -exec egrep -i "$PATTERN" {} \; | \
-    cut -d "$DELIM" -f "$FIELD" | sort -u | less
+  find "$DIR" -name "$FILE_PATTERN" -type f -print0 \
+    | xargs -0 grep -EHi "$PATTERN" 2>/dev/null \
+    | cut -d "$DELIM" -f "$FIELD" \
+    | sort -u || true
 fi
-
-echo "=== Press 'q' to exit less viewer ==="

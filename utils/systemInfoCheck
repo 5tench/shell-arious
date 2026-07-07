@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Path to your server list file
+SERVER_LIST="home/xander/servers.txt"
+
+# Check if server list file exists
+if [[ ! -f "$SERVER_LIST" ]]; then
+    echo "Error: $SERVER_LIST not found!"
+    exit 1
+fi
+
+# Loop through each server
+while IFS= read -r server; do
+    # Skip empty lines
+    [[ -z "$server" ]] && continue
+
+    echo "===================="
+    echo "Server: $server"
+    echo "===================="
+
+    # Run commands via SSH
+    ssh "$USERNAME@$server" << 'EOF'
+        echo "System Info:"
+        uname -a
+        echo ""
+
+        echo "Disk Space:"
+        df -h
+        echo ""
+EOF
+
+    # Basic success check
+    if [[ $? -eq 0 ]]; then
+        echo "Done with $server"
+    else
+        echo "Failed to connect to $server"
+    fi
+
+done < "$SERVER_LIST"

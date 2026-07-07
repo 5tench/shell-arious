@@ -59,3 +59,7 @@ For cleanup or maintenance scripts, prefer dry-run mode first when available.
 - Continue converting useful `.txt` notes into reviewed `.sh` scripts
 - Add dry-run modes to any script that changes files or packages
 - Keep personal paths and machine-specific values out of committed scripts
+
+One thing I want this repo to keep showing is that these scripts came from real command-line work, not from trying to pad a portfolio. The newer tools are a little more careful about arguments, help output, and safe defaults, but the repo still keeps the older notes because they show the path from quick fixes toward reusable operator tools.
+
+Package-related scripts detect the local package manager where possible instead of keeping separate distro-specific copies. The goal is to support Debian/Ubuntu, RHEL-family systems, and a few other common Linux environments with one readable script per task, while most troubleshooting scripts remain distro-neutral and rely on common Linux tools.

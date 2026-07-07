@@ -1,48 +1,162 @@
 #!/usr/bin/env bash
-# ---
-# Summary: Cleans apt caches and optionally updates Debian/Ubuntu packages.
-# Changes: Uses sudo and can modify installed packages when run with --update.
-# Run: ./automation/update_OS.sh or ./automation/update_OS.sh --update
-# ---
-
 set -euo pipefail
 
-show_help() {
-    cat <<'HELP'
-Usage: update_OS.sh [--update]
+APPLY=false
+PKG_MANAGER=""
+OS_NAME="unknown"
 
-Performs basic apt cleanup on Debian/Ubuntu systems. With --update, also runs package updates.
-This script changes the system and may require sudo.
+show_help() {
+  cat <<'HELP'
+Summary:
+  Preview or apply system package updates using the local package manager.
+
+Usage:
+  update_OS.sh [--apply]
+
+Examples:
+  ./automation/update_OS.sh
+  ./automation/update_OS.sh --apply
+
+Notes:
+  Dry-run by default. Supports apt-get, apt, dnf, yum, zypper, and pacman when available.
+  Commands are printed before they run. No updates are applied unless --apply is passed.
 HELP
 }
 
-run() {
-    echo "+ $*"
-    "$@"
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-    show_help
-    exit 0
-fi
+die() {
+  echo "error: $*" >&2
+  exit 2
+}
 
-if ! command -v apt-get >/dev/null 2>&1; then
-    echo "This script expects apt-get and is intended for Debian/Ubuntu systems." >&2
-    exit 1
-fi
+detect_os() {
+  if [[ -r /etc/os-release ]]; then
+    # shellcheck disable=SC1091
+    . /etc/os-release
+    OS_NAME="${PRETTY_NAME:-unknown}"
+  fi
+}
 
-run sudo apt-get autoremove -y
-run sudo apt-get autoclean -y
-run sudo systemd-tmpfiles --remove || true
-run sudo apt-get install -f -y
-run sudo apt-get clean
+detect_package_manager() {
+  if command_exists dnf; then
+    PKG_MANAGER="dnf"
+  elif command_exists yum; then
+    PKG_MANAGER="yum"
+  elif command_exists apt-get; then
+    PKG_MANAGER="apt-get"
+  elif command_exists apt; then
+    PKG_MANAGER="apt"
+  elif command_exists zypper; then
+    PKG_MANAGER="zypper"
+  elif command_exists pacman; then
+    PKG_MANAGER="pacman"
+  else
+    PKG_MANAGER=""
+  fi
+}
 
-if [[ "${1:-}" == "--update" ]]; then
-    run sudo apt-get update
-    run sudo apt-get upgrade -y
-    run sudo apt-get dist-upgrade -y
-else
-    echo "Skipping package updates. Rerun with --update to include them."
-fi
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --apply)
+        APPLY=true
+        shift
+        ;;
+      --help|-h)
+        show_help
+        exit 0
+        ;;
+      *)
+        die "unknown argument: $1"
+        ;;
+    esac
+  done
+}
 
-echo "Cleanup complete."
+run_or_preview() {
+  echo "+ $*"
+
+  if [[ "$APPLY" == true ]]; then
+    "$@"
+  fi
+}
+
+run_or_preview_allow_nonzero() {
+  echo "+ $*"
+
+  if [[ "$APPLY" == true ]]; then
+    "$@" || true
+  fi
+}
+
+run_apt_updates() {
+  local apt_cmd="$1"
+
+  run_or_preview sudo "$apt_cmd" update
+  run_or_preview sudo "$apt_cmd" upgrade -y
+  run_or_preview sudo "$apt_cmd" autoremove -y
+  run_or_preview sudo "$apt_cmd" clean
+}
+
+run_rpm_updates() {
+  run_or_preview_allow_nonzero sudo "$PKG_MANAGER" check-update
+  run_or_preview sudo "$PKG_MANAGER" upgrade -y
+  run_or_preview sudo "$PKG_MANAGER" autoremove -y
+  run_or_preview sudo "$PKG_MANAGER" clean all
+}
+
+run_zypper_updates() {
+  run_or_preview sudo zypper --non-interactive refresh
+  run_or_preview sudo zypper --non-interactive update
+  run_or_preview sudo zypper clean
+}
+
+run_pacman_updates() {
+  run_or_preview sudo pacman -Syu --noconfirm
+}
+
+main() {
+  parse_args "$@"
+  detect_os
+  detect_package_manager
+
+  echo "OS: $OS_NAME"
+  echo "Package manager: ${PKG_MANAGER:-not found}"
+  if [[ "$APPLY" == true ]]; then
+    mode="apply"
+  else
+    mode="dry-run"
+  fi
+
+  echo "Mode: $mode"
+  echo
+
+  case "$PKG_MANAGER" in
+    apt-get|apt)
+      run_apt_updates "$PKG_MANAGER"
+      ;;
+    dnf|yum)
+      run_rpm_updates
+      ;;
+    zypper)
+      run_zypper_updates
+      ;;
+    pacman)
+      run_pacman_updates
+      ;;
+    "")
+      echo "No supported package manager found." >&2
+      exit 3
+      ;;
+  esac
+
+  if [[ "$APPLY" != true ]]; then
+    echo
+    echo "Dry run only. Rerun with --apply to execute these commands."
+  fi
+}
+
+main "$@"
